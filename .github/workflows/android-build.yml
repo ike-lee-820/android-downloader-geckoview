@@ -89,7 +89,7 @@ jobs:
         run: |
           for f in /tmp/build-debug.log /tmp/build-release.log; do
             [ -f "$f" ] || continue
-            (grep -E "e: |error:|FAILURE:|What went wrong|Execution failed|Could not resolve|Unresolved|Caused by" "$f" || true) | tail -40 | while IFS= read -r line; do
+            awk '/\* What went wrong:/{flag=1} flag{print; n++} n>=60{exit}' "$f" | while IFS= read -r line; do
               echo "::error::$(printf '%s' "$line" | cut -c1-280)"
             done
           done
