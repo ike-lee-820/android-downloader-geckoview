@@ -75,10 +75,24 @@ jobs:
         run: gradle $GV_ARG :app:printGeckoViewCoordinate --no-daemon
 
       - name: 编译 Debug APK
-        run: gradle $GV_ARG :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle $GV_ARG :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log
 
       - name: 编译 Release APK（ABI 拆分 + R8 + 资源压缩）
-        run: gradle $GV_ARG :app:assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle $GV_ARG :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/build-release.log
+
+      - name: 输出编译错误摘要
+        if: failure()
+        run: |
+          for f in /tmp/build-debug.log /tmp/build-release.log; do
+            [ -f "$f" ] || continue
+            (grep -E "e: |error:|FAILURE:|What went wrong|Execution failed|Could not resolve|Unresolved|Caused by" "$f" || true) | tail -40 | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | cut -c1-280)"
+            done
+          done
 
       - name: 输出 APK 体积
         run: |
