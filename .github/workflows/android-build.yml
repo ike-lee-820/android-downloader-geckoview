@@ -32,7 +32,7 @@ jobs:
           command -v sdkmanager || true
           java -version
 
-      - name: 接受 SDK 许可并安装 API 35 平台
+      - name: 接受 SDK 许可并安装 API 37 平台
         run: |
           SDKMGR="$(command -v sdkmanager || true)"
           if [ -z "$SDKMGR" ]; then
@@ -43,7 +43,8 @@ jobs:
           fi
           echo "sdkmanager=$SDKMGR"
           yes | "$SDKMGR" --licenses > /dev/null || true
-          "$SDKMGR" "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
+          "$SDKMGR" "platforms;android-37" "build-tools;35.0.0" "platform-tools" > /dev/null
+          "$SDKMGR" "build-tools;36.0.0" > /dev/null || true
 
       - name: 解析 GeckoView 当前 Stable 版本
         id: gv

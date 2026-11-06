@@ -33,7 +33,7 @@
 - `app/build.gradle.kts` 中声明 `geckoview.channel = release`（Stable）与 `geckoview.version`；默认 `latest.release`，构建时读取 `maven.mozilla.org` 的 `maven-metadata.xml` 解析当前 Stable 版本号。可复现构建时用 `-Pgeckoview.version=<具体版本>` 钉住。
 - Mozilla Maven 是 GeckoView 唯一来源：`https://maven.mozilla.org/maven2`，配合 `content { includeGroup("org.mozilla.geckoview") }` 限定，不使用 JCenter 或任何第三方镜像。
 - Java 17：`compileOptions` 与 `kotlinOptions.jvmTarget` 均为 17。
-- `compileSdk = 35` 用于满足当前 Stable GeckoView AAR 的编译要求；`minSdk = 26`、`targetSdk = 34` 保持不变。
+- `compileSdk = 37` 用于满足当前 Stable GeckoView（159.x）AAR metadata 的要求；`minSdk = 26`、`targetSdk = 34` 保持不变，AGP 对更高编译版本的提示由 `android.suppressUnsupportedCompileSdk=37` 显式确认。
 - 全工程已移除 `android.webkit.*` 引用，包括 `MimeTypeMap`、`CookieManager`、`WebStorage`。MIME 判定改为 `StorageHelper` 内自维护映射表。
 
 ### 3. 浏览器壳层结构
@@ -61,7 +61,7 @@
 ## 三、编译步骤
 
 ```bash
-# JDK 17、Android SDK Platform 35 + Build Tools 35.0.0
+# JDK 17、Android SDK Platform 37 + Build Tools 35.0.0
 # 方式一：使用已配置的 Gradle 8.9
 gradle :app:assembleDebug --no-daemon
 gradle :app:assembleRelease --no-daemon
@@ -73,7 +73,7 @@ gradle wrapper --gradle-version 8.9
 
 调试版本需连接 arm64-v8a 或 armeabi-v7a 真机 / 模拟器（GeckoView 不含 x86_64 ABI 产物时以本机 ABI 为准）。`gradle :app:printGeckoViewCoordinate` 可输出本次构建实际解析的 Maven 坐标。
 
-GitHub Actions 工作流位于 `.github/workflows/android-build.yml`：安装 API 35、校验 Mozilla Maven 可达性、输出坐标、分别构建 Debug 与 Release，并上传两类 APK 产物。
+GitHub Actions 工作流位于 `.github/workflows/android-build.yml`：安装 API 37 平台、校验 Mozilla Maven 可达性、输出坐标、分别构建 Debug 与 Release，并上传两类 APK 产物。
 
 ## 四、权限说明
 

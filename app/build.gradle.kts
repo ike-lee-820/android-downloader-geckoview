@@ -33,8 +33,9 @@ repositories {
 
 android {
     namespace = "com.yuanbao.downloader"
-    // 当前 Stable GeckoView AAR 编译时要求 API 35 平台；运行目标仍保持 targetSdk 34。
-    compileSdk = 35
+    // 当前 Stable GeckoView (159.x) 的 AAR metadata 要求依赖方以 API 37 及以上编译；
+    // 运行目标仍保持 targetSdk 34，最低支持 minSdk 26，均不随 compileSdk 改变。
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.yuanbao.downloader"
