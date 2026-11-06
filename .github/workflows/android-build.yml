@@ -42,16 +42,25 @@ jobs:
             SDKMGR="$ANDROID_HOME/tools/bin/sdkmanager"
           fi
           echo "sdkmanager=$SDKMGR"
+          "$SDKMGR" --version || true
           yes | "$SDKMGR" --licenses > /dev/null || true
           PLATS=$("$SDKMGR" --list 2>/dev/null | grep -o 'platforms;android-3[0-9]' | sort -u | tr '\n' ' ')
           echo "::notice::可用 Android 平台: $PLATS"
-          if ! "$SDKMGR" "platforms;android-37" "build-tools;35.0.0" "platform-tools" > /tmp/sdk-setup.log 2>&1; then
-            tail -25 /tmp/sdk-setup.log | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | cut -c1-280)"
-            done
+          : > /tmp/sdk-setup.log
+          FAILED=""
+          for pkg in "platforms;android-37" "build-tools;35.0.0" "platform-tools"; do
+            if ! "$SDKMGR" "$pkg" >> /tmp/sdk-setup.log 2>&1; then
+              FAILED="$pkg"
+              break
+            fi
+          done
+          "$SDKMGR" "build-tools;36.0.0" >> /tmp/sdk-setup.log 2>&1 || true
+          if [ -n "$FAILED" ]; then
+            echo "::error::安装包失败: $FAILED"
+            SUMMARY=$(tr '\r\n' '  ' < /tmp/sdk-setup.log | tr -s ' ' | tr -d '%' | cut -c1-3000)
+            echo "::error::SDK_LOG: $SUMMARY"
             exit 1
           fi
-          "$SDKMGR" "build-tools;36.0.0" > /dev/null || true
 
       - name: 解析 GeckoView 当前 Stable 版本
         id: gv
