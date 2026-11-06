@@ -32,43 +32,26 @@ jobs:
           command -v sdkmanager || true
           java -version
 
-      - name: 接受 SDK 许可并安装 API 37 平台
+      - name: 接受 SDK 许可并安装可用 Android 平台
         run: |
           SDKMGR="$(command -v sdkmanager || true)"
-          if [ -z "$SDKMGR" ]; then
-            SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          fi
-          if [ ! -x "$SDKMGR" ]; then
-            SDKMGR="$ANDROID_HOME/tools/bin/sdkmanager"
-          fi
-          echo "sdkmanager=$SDKMGR"
-          "$SDKMGR" --version || true
+          if [ -z "$SDKMGR" ]; then SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; fi
+          if [ ! -x "$SDKMGR" ]; then SDKMGR="$ANDROID_HOME/tools/bin/sdkmanager"; fi
           yes | "$SDKMGR" --licenses > /dev/null || true
-          "$SDKMGR" "cmdline-tools;latest" >> /tmp/sdk-setup-pre.log 2>&1 || true
-          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          fi
-          echo "::notice::sdkmanager 版本: $("$SDKMGR" --version 2>&1 | head -2 | tr '\n' ' ')"
-          PLATS=$("$SDKMGR" --list 2>/dev/null | grep -o 'platforms;android-3[0-9]' | sort -u | tr '\n' ' ')
-          echo "::notice::可用 Android 平台: $PLATS"
           : > /tmp/sdk-setup.log
-          FAILED=""
-          for pkg in "platforms;android-37" "build-tools;35.0.0" "platform-tools"; do
-            if ! "$SDKMGR" "$pkg" >> /tmp/sdk-setup.log 2>&1; then
-              if [ "$pkg" = "platforms;android-37" ] && "$SDKMGR" "$pkg" --channel=1 >> /tmp/sdk-setup.log 2>&1; then
-                continue
-              fi
-              FAILED="$pkg"
-              break
-            fi
+          INSTALLED=""
+          for pkg in "platforms;android-37" "platforms;android-36" "platforms;android-35"; do
+            if "$SDKMGR" "$pkg" >> /tmp/sdk-setup.log 2>&1; then INSTALLED="$pkg"; break; fi
           done
-          "$SDKMGR" "build-tools;36.0.0" >> /tmp/sdk-setup.log 2>&1 || true
-          if [ -n "$FAILED" ]; then
-            echo "::error::安装包失败: $FAILED"
-            SUMMARY=$(tr '\r\n' '  ' < /tmp/sdk-setup.log | tr -s ' ' | tr -d '%' | cut -c1-3000)
-            echo "::error::SDK_LOG: $SUMMARY"
+          if [ -z "$INSTALLED" ]; then
+            echo "::error::无可用 Android 平台包"
             exit 1
           fi
+          VER="${INSTALLED##*android-}"
+          echo "COMPILE_SDK=$VER" >> "$GITHUB_ENV"
+          echo "::notice::使用平台: $INSTALLED (API $VER)"
+          "$SDKMGR" "build-tools;35.0.0" "platform-tools" >> /tmp/sdk-setup.log 2>&1 || true
+          "$SDKMGR" "build-tools;36.0.0" >> /tmp/sdk-setup.log 2>&1 || true
 
       - name: 解析 GeckoView 当前 Stable 版本
         id: gv
@@ -97,17 +80,17 @@ jobs:
         run: curl -fsSIL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | head -5
 
       - name: 输出实际解析的 GeckoView 坐标
-        run: gradle $GV_ARG :app:printGeckoViewCoordinate --no-daemon
+        run: gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:printGeckoViewCoordinate --no-daemon
 
       - name: 编译 Debug APK
         run: |
           set -o pipefail
-          gradle $GV_ARG :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log
+          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log
 
       - name: 编译 Release APK（ABI 拆分 + R8 + 资源压缩）
         run: |
           set -o pipefail
-          gradle $GV_ARG :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/build-release.log
+          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/build-release.log
 
       - name: 输出编译错误摘要
         if: failure()
