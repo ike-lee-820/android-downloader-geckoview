@@ -73,6 +73,12 @@ gradle wrapper --gradle-version 8.9
 
 调试版本需连接 arm64-v8a 或 armeabi-v7a 真机 / 模拟器（GeckoView 不含 x86_64 ABI 产物时以本机 ABI 为准）。`gradle :app:printGeckoViewCoordinate` 可输出本次构建实际解析的 Maven 坐标。
 
+### 版本号迭代与自动发布
+
+版本号规则为 **年后两位.月.当月发布次数**，例如 `26.11.0`、`26.11.1`。GitHub Actions 在每次构建开始时读取仓库中 `26.11.*` 的已有 tag，取最大次数加一作为本次 `VERSION_TAG`，并计算 `versionCode = 年 * 10000 + 月 * 100 + 次数`（`26.11.0` 对应 `261100`），通过 `-Papp.version.name` / `-Papp.version.code` 注入 Gradle 的 `versionName` / `versionCode`。首次构建自然得到 `26.11.0`。
+
+Release APK 编译成功并在构建产物上传完成后，工作流自动创建同名 GitHub Release，把 `app/build/outputs/apk/release/` 下按 ABI 拆分的全部 APK 作为资产上传。Pull Request 构建只编译不发布。示例工程使用 debug 签名保证产物可安装，正式上架前需替换为正式 keystore。
+
 GitHub Actions 工作流位于 `.github/workflows/android-build.yml`：自动选择可用 Android 平台、校验 Mozilla Maven 可达性、输出坐标、分别构建 Debug 与 Release，并上传两类 APK 产物。
 
 ## 四、权限说明

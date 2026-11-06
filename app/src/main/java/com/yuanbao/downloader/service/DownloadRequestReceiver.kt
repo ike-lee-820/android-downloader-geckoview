@@ -22,7 +22,7 @@ class DownloadRequestReceiver : BroadcastReceiver() {
     @Inject lateinit var engine: DownloadEngine
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == DownloadManager.ACTION_DOWNLOAD_COMPLETED) return
+        if (intent.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
         val raw = intent.getStringExtra(EXTRA_URL)
             ?: intent.data?.toString()
             ?: intent.getStringExtra(Intent.EXTRA_TEXT)

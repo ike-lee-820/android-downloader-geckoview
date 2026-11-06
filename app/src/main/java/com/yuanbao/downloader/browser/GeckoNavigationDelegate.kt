@@ -99,8 +99,8 @@ class GeckoNavigationDelegate(
 
     // ProgressDelegate
 
-    override fun onPageStart(session: GeckoSession, url: String?) {
-        state.url = url?.takeIf { it.isNotBlank() } ?: state.url
+    override fun onPageStart(session: GeckoSession, url: String) {
+        state.url = url.takeIf { it.isNotBlank() } ?: state.url
         state.progress = 10
         emit()
     }

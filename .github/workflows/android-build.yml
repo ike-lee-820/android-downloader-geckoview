@@ -7,6 +7,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,6 +35,42 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           command -v sdkmanager || true
           java -version
+
+      - name: 计算迭代版本号
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          YY=$(date -u +%y)
+          MM=$(date -u +%m)
+          PREFIX="$YY.$MM"
+          curl -fsS -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/tags?per_page=100" \
+            -o /tmp/tags.json
+          N=$(PREFIX="$PREFIX" python3 - <<'PY'
+          import json, os, re
+          prefix = os.environ["PREFIX"]
+          try:
+              data = json.load(open("/tmp/tags.json"))
+              nums = [int(m.group(1)) for t in data
+                      for m in [re.fullmatch(re.escape(prefix) + r"\.(\d+)", t.get("name", ""))]
+                      if m]
+              print(max(nums) + 1 if nums else 0)
+          except Exception:
+              print(0)
+          PY
+          )
+          TAG="$PREFIX.$N"
+          CODE=$(( 10#$YY * 10000 + 10#$MM * 100 + N ))
+          echo "::notice::本次版本: $TAG (versionCode=$CODE)"
+          echo "version_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "VERSION_TAG=$TAG"
+            echo "VERSION_CODE=$CODE"
+          } >> "$GITHUB_ENV"
 
       - name: 接受 SDK 许可并安装可用 Android 平台
         run: |
@@ -79,18 +119,18 @@ jobs:
       - name: 校验 Mozilla Maven 可达性
         run: curl -fsSIL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | head -5
 
-      - name: 输出实际解析的 GeckoView 坐标
-        run: gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:printGeckoViewCoordinate --no-daemon
+      - name: 输出实际解析的 GeckoView 坐标与版本号
+        run: gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK -Papp.version.name=$VERSION_TAG -Papp.version.code=$VERSION_CODE :app:printGeckoViewCoordinate --no-daemon
 
       - name: 编译 Debug APK
         run: |
           set -o pipefail
-          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log
+          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK -Papp.version.name=$VERSION_TAG -Papp.version.code=$VERSION_CODE :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log
 
       - name: 编译 Release APK（ABI 拆分 + R8 + 资源压缩）
         run: |
           set -o pipefail
-          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/build-release.log
+          gradle $GV_ARG -Pcompile.sdk=$COMPILE_SDK -Papp.version.name=$VERSION_TAG -Papp.version.code=$VERSION_CODE :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/build-release.log
 
       - name: 输出编译错误摘要
         if: failure()
@@ -104,6 +144,7 @@ jobs:
 
       - name: 输出 APK 体积
         run: |
+          echo "== 版本 $VERSION_TAG (versionCode=$VERSION_CODE) =="
           echo "== Debug =="
           ls -lh app/build/outputs/apk/debug/*.apk || true
           echo "== Release (per ABI) =="
@@ -112,13 +153,69 @@ jobs:
       - name: 上传 Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-debug-${{ steps.ver.outputs.version_tag }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
       - name: 上传 Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-per-abi
+          name: app-release-${{ steps.ver.outputs.version_tag }}
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      - name: 创建 GitHub Release 并上传 APK
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO="${{ github.repository }}"
+          BODY=$(VERSION_TAG="$VERSION_TAG" COMPILE_SDK="$COMPILE_SDK" python3 - <<'PY'
+          import json, os
+          v = os.environ["VERSION_TAG"]
+          sdk = os.environ.get("COMPILE_SDK", "")
+          body = "\n".join([
+              "## Android 下载器 " + v,
+              "",
+              "- 版本号规则：年后两位.月.当月发布次数，例如 26.11.0。",
+              "- 内置浏览器：GeckoView（Stable），内置 WebExtension 负责资源嗅探。",
+              "- 下载引擎：多线程分片、断点续传、Room 持久化、前台服务保持不变。",
+              "- Release 已启用 ABI 拆分、R8 与资源压缩，仅包含 arm64-v8a 与 armeabi-v7a。",
+              "- 编译 SDK 平台：API " + sdk + "；targetSdk 34，minSdk 26。",
+              "",
+              "每个 ABI 对应一个 APK，请按设备架构选择安装。",
+          ])
+          print(json.dumps({"tag_name": v, "name": "Android 下载器 " + v,
+                            "body": body, "draft": False, "prerelease": False,
+                            "target_commitish": "main", "generate_release_notes": False}))
+          PY
+          )
+          printf '%s' "$BODY" > /tmp/release.json
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/release.json \
+            "https://api.github.com/repos/$REPO/releases" -o /tmp/release-out.json
+          REL_ID=$(python3 -c "import json;print(json.load(open('/tmp/release-out.json'))['id'])")
+          echo "::notice::Release id=$REL_ID tag=$VERSION_TAG"
+          UPLOAD="https://uploads.github.com/repos/$REPO/releases/$REL_ID/assets"
+          count=0
+          for apk in app/build/outputs/apk/release/*.apk; do
+            [ -f "$apk" ] || continue
+            name=$(basename "$apk")
+            curl -fsS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/vnd.android.package-archive" \
+              --data-binary "@$apk" \
+              "$UPLOAD?name=$name" > /dev/null
+            echo "::notice::已上传资产: $name"
+            count=$((count + 1))
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "::error::未找到 Release APK 资产"
+            exit 1
+          fi
+          echo "::notice::共上传 $count 个 APK 资产"

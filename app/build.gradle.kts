@@ -20,6 +20,12 @@ val geckoviewVersion: String = providers.gradleProperty("geckoview.version")
 val geckoviewArtifact: String =
     if (geckoviewChannel == "release") "geckoview" else "geckoview-$geckoviewChannel"
 
+// 六、迭代版本号：规则为 年后两位.月.当月发布次数，例如 26.11.0、26.11.1。
+// GitHub Actions 计算当月已有 tag 的最大次数加一后通过 -Papp.version.name / -Papp.version.code 注入；
+// 本地构建默认 26.11.0 / 261100，保证脱离 CI 也能直接编译。
+val appVersionName: String = providers.gradleProperty("app.version.name").getOrElse("26.11.0")
+val appVersionCode: Int = providers.gradleProperty("app.version.code").orNull?.toIntOrNull() ?: 261100
+
 // 二、Mozilla Maven 仓库（GeckoView 唯一来源，禁止 JCenter 与第三方镜像）
 // google() 与 mavenCentral() 仅用于 AndroidX / Kotlin / OkHttp 等既有依赖。
 repositories {
@@ -44,8 +50,8 @@ android {
         applicationId = "com.yuanbao.downloader"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
@@ -74,6 +80,9 @@ android {
             // 三、资源压缩与 R8
             isMinifyEnabled = true
             isShrinkResources = true
+            // 示例工程使用 debug 签名，保证自动发布的 Release APK 可直接安装；
+            // 生产上架前必须替换为正式 keystore 配置。
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -164,5 +173,6 @@ tasks.register("printGeckoViewCoordinate") {
     description = "输出当前构建使用的 GeckoView Maven 坐标"
     doLast {
         println("GeckoView coordinate: org.mozilla.geckoview:$geckoviewArtifact:$geckoviewVersion")
+        println("App version: $appVersionName (versionCode=$appVersionCode), compileSdk=$resolvedCompileSdk")
     }
 }
