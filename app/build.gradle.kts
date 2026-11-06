@@ -26,6 +26,12 @@ val geckoviewArtifact: String =
 val appVersionName: String = providers.gradleProperty("app.version.name").getOrElse("26.11.0")
 val appVersionCode: Int = providers.gradleProperty("app.version.code").orNull?.toIntOrNull() ?: 261100
 
+// AGP 不允许 ndk.abiFilters 与 splits.abi 同时存在，二者只能择一：
+// Release 交给 splits 按 ABI 拆包；Debug 使用 ndk.abiFilters 裁剪，避免本地调试包过大。
+val isReleaseBuild: Boolean = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+
 // 二、Mozilla Maven 仓库（GeckoView 唯一来源，禁止 JCenter 与第三方镜像）
 // google() 与 mavenCentral() 仅用于 AndroidX / Kotlin / OkHttp 等既有依赖。
 repositories {
@@ -55,10 +61,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
-        // 三、ABI 裁剪（1/2）：直接把 AAR 内的 .so 限定为 arm64-v8a 与 armeabi-v7a。
+        // 三、ABI 裁剪（1/2）：Debug 用 ndk.abiFilters 把 .so 限定为两个移动 ABI。
         // 完整多架构 GeckoView AAR 约 150MB - 200MB，过滤后单 ABI 约 50MB - 70MB。
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        if (!isReleaseBuild) {
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
         }
     }
 
@@ -66,9 +74,7 @@ android {
     // debug 保持单一 APK，便于开发调试。
     splits {
         abi {
-            isEnable = gradle.startParameter.taskNames.any {
-                it.contains("Release", ignoreCase = true)
-            }
+            isEnable = isReleaseBuild
             reset()
             include("arm64-v8a", "armeabi-v7a")
             isUniversalApk = false

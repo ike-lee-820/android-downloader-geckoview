@@ -107,11 +107,11 @@ GeckoView 自带完整 Gecko 引擎的 `.so` 与资源，完整多架构 AAR 约
 
 ### 裁剪配置
 
-`app/build.gradle.kts` 中两处共同生效：
+`app/build.gradle.kts` 中按构建类型择一生效（AGP 禁止二者同时配置）：
 
-1. `defaultConfig.ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")`：在打包阶段把 AAR 内 `.so` 限定为两个移动设备主流 ABI。
-2. `splits.abi { isEnable = 仅 Release 构建; reset(); include("arm64-v8a", "armeabi-v7a"); isUniversalApk = false }`：Release 按 ABI 拆分 APK，不生成 universal 包；Debug 保持单一 APK 便于调试。
-3. `release { isMinifyEnabled = true; isShrinkResources = true }`：R8 代码缩减与资源压缩；`proguard-rules.pro` 全量保留 `org.mozilla.geckoview.**`，避免 JNI / 反射调用被裁掉。
+1. `splits.abi { isEnable = isReleaseBuild; reset(); include("arm64-v8a", "armeabi-v7a"); isUniversalApk = false }`：Release 按 ABI 拆分 APK，不生成 universal 包。
+2. `defaultConfig { if (!isReleaseBuild) ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") } }`：Debug 保持单一 APK，用 ndk 过滤裁剪 `.so`，便于开发调试。
+3. `release { isMinifyEnabled = true; isShrinkResources = true; signingConfig = debug }`：R8 代码缩减与资源压缩；`proguard-rules.pro` 全量保留 `org.mozilla.geckoview.**`，避免 JNI / 反射调用被裁掉。示例工程用 debug 签名保证自动发布的 APK 可直接安装。
 
 ### 预期体积
 
