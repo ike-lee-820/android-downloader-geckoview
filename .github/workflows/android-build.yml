@@ -44,12 +44,20 @@ jobs:
           echo "sdkmanager=$SDKMGR"
           "$SDKMGR" --version || true
           yes | "$SDKMGR" --licenses > /dev/null || true
+          "$SDKMGR" "cmdline-tools;latest" >> /tmp/sdk-setup-pre.log 2>&1 || true
+          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          echo "::notice::sdkmanager 版本: $("$SDKMGR" --version 2>&1 | head -2 | tr '\n' ' ')"
           PLATS=$("$SDKMGR" --list 2>/dev/null | grep -o 'platforms;android-3[0-9]' | sort -u | tr '\n' ' ')
           echo "::notice::可用 Android 平台: $PLATS"
           : > /tmp/sdk-setup.log
           FAILED=""
           for pkg in "platforms;android-37" "build-tools;35.0.0" "platform-tools"; do
             if ! "$SDKMGR" "$pkg" >> /tmp/sdk-setup.log 2>&1; then
+              if [ "$pkg" = "platforms;android-37" ] && "$SDKMGR" "$pkg" --channel=1 >> /tmp/sdk-setup.log 2>&1; then
+                continue
+              fi
               FAILED="$pkg"
               break
             fi
