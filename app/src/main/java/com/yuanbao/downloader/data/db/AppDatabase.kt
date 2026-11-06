@@ -39,7 +39,7 @@ data class DownloadTaskEntity(
     val hlsVariantUrl: String? = null
 )
 
-@Entity(tableName = "segments", primaryKeys = ["taskId", "segIndex"])
+@Entity(tableName = "segments", primaryKeys = ["taskId", "seg_index"])
 data class SegmentEntity(
     val taskId: String,
     @ColumnInfo(name = "seg_index") val segIndex: Int,

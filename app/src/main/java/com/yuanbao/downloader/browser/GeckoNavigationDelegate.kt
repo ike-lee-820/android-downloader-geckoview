@@ -64,7 +64,7 @@ class GeckoNavigationDelegate(
         session: GeckoSession,
         url: String?,
         perms: List<GeckoSession.PermissionDelegate.ContentPermission>,
-        hasUserGesture: Boolean?
+        hasUserGesture: Boolean
     ) {
         state.url = url?.takeIf { it.isNotBlank() } ?: "about:blank"
         state.progress = 5
@@ -74,7 +74,7 @@ class GeckoNavigationDelegate(
 
     override fun onLoadError(
         session: GeckoSession,
-        uri: String,
+        uri: String?,
         error: WebRequestError
     ): GeckoResult<String> {
         val reason = runCatching { error.toString() }.getOrDefault("页面加载失败")
@@ -99,7 +99,7 @@ class GeckoNavigationDelegate(
 
     // ProgressDelegate
 
-    override fun onPageStart(session: GeckoSession, url: String) {
+    override fun onPageStart(session: GeckoSession, url: String?) {
         state.url = url?.takeIf { it.isNotBlank() } ?: state.url
         state.progress = 10
         emit()

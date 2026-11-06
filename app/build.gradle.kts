@@ -94,6 +94,19 @@ android {
     }
 }
 
+// GeckoView 159.x 由 Mozilla 以较新 Kotlin 构建，其 POM 会把 kotlin-stdlib 抬到 2.4.x；
+// 本工程 Kotlin 编译器固定 2.0.20，需把 stdlib 家族钉回同版本，避免 metadata 不兼容。
+configurations.configureEach {
+    resolutionStrategy {
+        force(
+            "org.jetbrains.kotlin:kotlin-stdlib:2.0.20",
+            "org.jetbrains.kotlin:kotlin-stdlib-common:2.0.20",
+            "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.20",
+            "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.20"
+        )
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
@@ -127,7 +140,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     // 五、GeckoView（含 GeckoRuntime / GeckoSession / WebExtensionController）
-    implementation("org.mozilla.geckoview:$geckoviewArtifact:$geckoviewVersion")
+    implementation("org.mozilla.geckoview:$geckoviewArtifact:$geckoviewVersion") {
+        // 使用工程统一钉住的 2.0.20 stdlib，避免混入 2.4.x metadata
+        exclude(group = "org.jetbrains.kotlin")
+    }
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
