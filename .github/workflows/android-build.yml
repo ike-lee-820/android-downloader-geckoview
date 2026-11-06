@@ -43,7 +43,14 @@ jobs:
           fi
           echo "sdkmanager=$SDKMGR"
           yes | "$SDKMGR" --licenses > /dev/null || true
-          "$SDKMGR" "platforms;android-37" "build-tools;35.0.0" "platform-tools" > /dev/null
+          PLATS=$("$SDKMGR" --list 2>/dev/null | grep -o 'platforms;android-3[0-9]' | sort -u | tr '\n' ' ')
+          echo "::notice::可用 Android 平台: $PLATS"
+          if ! "$SDKMGR" "platforms;android-37" "build-tools;35.0.0" "platform-tools" > /tmp/sdk-setup.log 2>&1; then
+            tail -25 /tmp/sdk-setup.log | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | cut -c1-280)"
+            done
+            exit 1
+          fi
           "$SDKMGR" "build-tools;36.0.0" > /dev/null || true
 
       - name: 解析 GeckoView 当前 Stable 版本
