@@ -1,0 +1,90 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 配置 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 配置 Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: 接受 SDK 许可并安装 API 35 平台
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
+
+      - name: 解析 GeckoView 当前 Stable 版本
+        id: gv
+        run: |
+          set -e
+          curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml -o gv-metadata.xml
+          VERSION=$(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('gv-metadata.xml').getroot()
+          v = root.findtext('versioning/release') or ''
+          if not v:
+              vs = [x.text for x in root.findall('versioning/versions/version')
+                    if x.text and '-' not in x.text and 'a' not in x.text.split('.')[0]]
+              v = sorted(vs)[-1] if vs else ''
+          print(v.strip())
+          PY
+          )
+          echo "GeckoView Stable: ${VERSION:-latest.release}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "GV_ARG="
+            if [ -n "$VERSION" ]; then echo "GV_ARG=-Pgeckoview.version=$VERSION"; fi
+          } >> "$GITHUB_ENV"
+
+      - name: 校验 Mozilla Maven 可达性
+        run: curl -fsSIL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | head -5
+
+      - name: 输出实际解析的 GeckoView 坐标
+        run: gradle $GV_ARG :app:printGeckoViewCoordinate --no-daemon
+
+      - name: 编译 Debug APK
+        run: gradle $GV_ARG :app:assembleDebug --no-daemon --stacktrace
+
+      - name: 编译 Release APK（ABI 拆分 + R8 + 资源压缩）
+        run: gradle $GV_ARG :app:assembleRelease --no-daemon --stacktrace
+
+      - name: 输出 APK 体积
+        run: |
+          echo "== Debug =="
+          ls -lh app/build/outputs/apk/debug/*.apk || true
+          echo "== Release (per ABI) =="
+          ls -lh app/build/outputs/apk/release/*.apk || true
+
+      - name: 上传 Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: 上传 Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-per-abi
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">下载器</string>
+    <string name="tab_download">下载</string>
+    <string name="tab_browser">浏览器</string>
+    <string name="tab_settings">设置</string>
+    <string name="notification_channel_foreground">下载常驻服务</string>
+    <string name="notification_channel_events">下载完成与异常</string>
+    <string name="notif_downloading">正在下载</string>
+    <string name="notif_paused">下载已暂停</string>
+    <string name="notif_complete">下载完成</string>
+    <string name="notif_failed">下载失败</string>
+    <string name="notif_pause_all">全部暂停</string>
+    <string name="notif_stop">停止服务</string>
+    <string name="notif_open_file">点击打开文件</string>
+</resources>

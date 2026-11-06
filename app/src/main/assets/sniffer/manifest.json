@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "GeckoView Resource Sniffer",
+  "version": "1.0.0",
+  "description": "Observe Necko requests via webRequest and forward media resources to the native downloader.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sniffer@yuanbao.downloader",
+      "strict_min_version": "120.0"
+    }
+  },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "nativeMessaging",
+    "tabs",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["probe.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
