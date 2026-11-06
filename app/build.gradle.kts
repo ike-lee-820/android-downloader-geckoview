@@ -103,6 +103,13 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
+    // GeckoView 的大型 AAR 会触发 AGP lint 分析器的内部异常；
+    // Release 构建只做 R8 与资源压缩，关闭 lintVital，不影响编译产物。
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     buildFeatures { compose = true }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
